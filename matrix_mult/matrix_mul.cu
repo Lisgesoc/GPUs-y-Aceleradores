@@ -48,12 +48,12 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 
 	// Compute the execution configuration assuming
 	// the matrix dimensions are multiples of BLOCK_SIZE
-	//dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	//dim3 dimGrid(wB / dimBlock.x, hA / dimBlock.y);
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid((wB / dimBlock.x)+1, (hA / dimBlock.y)+1);
 
 	// Launch the device computation
-        inicia=clock();
-	Muld<<<1, 1>>>(Ad, Bd, wA, wB, hA, Cd);
+    inicia=clock();
+	Muld<<<dimGrid,dimBlock>>>(Ad, Bd, hA, wB, wA, Cd);
 	cudaDeviceSynchronize();
         tiempo=(clock()-inicia)/(double) CLOCKS_PER_SEC;
         printf("Tiempo mul externo:%f \n", tiempo);
@@ -73,18 +73,26 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	cudaFree(Bd);
 	cudaFree(Cd);
 }
-
-__global__ void Muld(float* A, float* B, int wA, int wB, int hA, float* C)
+//TODO: Fixear para valores 500 1000 753
+__global__ void Muld(float* A, float* B, int hA, int wB, int wA, float* C)
 {
-	int i,j,k;
+	int i;
+	float value=0.0;
+	int idx=(blockDim.x*blockIdx.x+threadIdx.x);
+	int idy=(blockDim.y*blockIdx.y+threadIdx.y);
+	int id=(idy*wA+idx);
+
 	//To Do
-	for (i=0; i<hA; i++)
-        	for (j=0; j<wB; j++){
-                	C[i*wB+j] = 0.0;
-                	for (k=0; k<wA; k++){
-        	   		C[i*wB+j] += A[i*wA+k]*B[k*wB+j];
-        	        }
-	        }
+	//C[id]=0.0;
+	if(idx<wB && idy<hA){
+		for (i=0; i<wA; i++){
+			//C[id]+=A[idy*wA+i]*B[i*wB+idx];
+			value+=A[idy*wA+i]*B[i*wB+idx];
+		}
+		C[id]=value;
+	}
+	
+
 
 }
 
