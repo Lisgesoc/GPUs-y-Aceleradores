@@ -117,10 +117,10 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	C[ty*wA+tx]=value;
 
 	// Index of the first sub-matrix of A processed by the block
-	int aBegin = by*wA;
+	int aBegin = by*wA*BLOCK_SIZE;
 
 	// Index of the last sub-matrix of A processed by the block
-	int aEnd = ((wA/BLOCK_SIZE)-1)*BLOCK_SIZE;
+	int aEnd = ((wA/BLOCK_SIZE)-1)*BLOCK_SIZE+aBegin;
 
 	// Step size used to iterate through the sub-matrices of A
 	int aStep = BLOCK_SIZE;
