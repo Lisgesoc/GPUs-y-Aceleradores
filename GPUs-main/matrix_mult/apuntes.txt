@@ -1,0 +1,32 @@
+HARDWARE LAB:
+(Mirar el guion codigo device info)    
+
+
+
+1- Ejecutar el producto de matrices en un unico bloque de hilos de un hilo
+
+2-  Crear un grid de hilos de manera que los elemntos de la matriz C (matriz resultado o producto) se calculen cada uno en un hilo 
+    y que elemntos cercanos divididos en bloques de 16x16 se computen en un mismo bloque. Cada bloque a una SM sera de 16x16 hilos(elemntos)
+    ¡Pero esto tiene un problema!: Todos los accesos desde los threads se realizan sobre la memoria total de la GPU (Accesos notablemente lentos)
+    TIEMPOS 1000 1000 1000:
+        Tamaño en bytes: 4000000 
+        Tiempo copia A:0.000407 
+        Ancho de banda transf A: 9828.009766
+        Tiempo copia B:0.000297 
+        Ancho de banda transf B: 13468.013672
+        Tiempo mul externo:0.001827 
+        Rendimiento Kernel: 1094690.750000
+        Tiempo copia C:0.000367 
+        Ancho de banda transf C: 10899.182617
+
+3.0- Aprovechar los datos que trabajan una sm de manera que no necesite aceder cada hilo a los elementos de las matrices A y B. 
+     Si la memoria interna de cada sm fuese infinita lo mas eficiente es que cada hilo de un bloque calculase un elem de C 
+     que tomase la misma fila de A o columna de B. De esta manera solo tendira que cargarse los datos de una matriz una vez y los de la otra las veces necesarias
+     ¡Pero esto tiene un problema!: El tamaño de k (elementos por fila de A o columna de B), es arbitrario y podria no caber en la mem compartida de una SM
+
+3.1- Para asegurarnos que toda la informacion necesaria para el computo de un bloque de hilos quepa en la mem compartida segmentaremos la computacion de cada elemento
+     de C haciendo las operaciones acumulativas en varios hilos. Cargaremos en la mem un bloque de A y uno de B haciendo sus op parciales y acumulandolas sobre 
+     el elemento correspondiente de C, de manera que los siguientes hilos, que computen ese elemento pero con otros datos, terminen el calculo.
+     La carga de la mem compartida de una SM se realizara de manera conjunta entre todos los hilos de la SM y syncronizando su ejecucion para que ninguno realice
+     el computo antes de haberse cargado todos los datos necesarios.
+     MAL
