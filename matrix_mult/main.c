@@ -43,8 +43,8 @@ int diff(float *A, float *B, int hA, int wA, int wB, float *C)
 				C_cpu[i*wB+j] += A[i*wA+k]*B[k*wB+j];
 			}
 		}
-	//printf("\n\nMATRIX C_cpu\n");print_matrix(C_cpu, hA, wB);
-
+	printf("\n\nMATRIX C_cpu\n");print_matrix(C_cpu, hA, wB);
+	printf("\n\nMATRIX C_gpu\n");print_matrix(C, hA, wB);
 	for (i=0; i<hA; i++)
 		for (j=0; j<wB; j++)
 			if (fabsf(C_cpu[i*wB+j]-C[i*wB+j])>1e-5)

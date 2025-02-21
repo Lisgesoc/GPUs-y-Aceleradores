@@ -24,9 +24,4 @@ HARDWARE LAB:
      que tomase la misma fila de A o columna de B. De esta manera solo tendira que cargarse los datos de una matriz una vez y los de la otra las veces necesarias
      ¡Pero esto tiene un problema!: El tamaño de k (elementos por fila de A o columna de B), es arbitrario y podria no caber en la mem compartida de una SM
 
-3.1- Para asegurarnos que toda la informacion necesaria para el computo de un bloque de hilos quepa en la mem compartida segmentaremos la computacion de cada elemento
-     de C haciendo las operaciones acumulativas en varios hilos. Cargaremos en la mem un bloque de A y uno de B haciendo sus op parciales y acumulandolas sobre 
-     el elemento correspondiente de C, de manera que los siguientes hilos, que computen ese elemento pero con otros datos, terminen el calculo.
-     La carga de la mem compartida de una SM se realizara de manera conjunta entre todos los hilos de la SM y syncronizando su ejecucion para que ninguno realice
-     el computo antes de haberse cargado todos los datos necesarios.
-     MAL
+3.1- TODO

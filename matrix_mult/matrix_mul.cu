@@ -6,7 +6,8 @@
 #define BLOCK_SIZE 16 
 
 // Forward declaration of the device multiplication function
-__global__ void Muld(float*, float*, int, int, float*);
+__global__ void Muld(float*, float*, int, int, int, float*);
+//__global__ void Muld(float*, float*, int, int, float*);
 
 // Host multiplication function
 // Compute C = A * B
@@ -53,7 +54,8 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 
 	// Launch the device computation
     inicia=clock();
-	Muld<<<dimGrid,dimBlock>>>(Ad, Bd, wA, wB, Cd);
+	Muld<<<dimGrid,dimBlock>>>(Ad, Bd, hA, wB, wA, Cd);
+	//Muld<<<dimGrid,dimBlock>>>(Ad, Bd, wA, wB, Cd);
 	cudaDeviceSynchronize();
         tiempo=(clock()-inicia)/(double) CLOCKS_PER_SEC;
         printf("Tiempo mul externo:%f \n", tiempo);
@@ -73,7 +75,7 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	cudaFree(Bd);
 	cudaFree(Cd);
 }
-#if 0
+//#if 0
 //TODO: Fixear para valores 500 1000 753
 __global__ void Muld(float* A, float* B, int hA, int wB, int wA, float* C)
 {
@@ -96,8 +98,9 @@ __global__ void Muld(float* A, float* B, int hA, int wB, int wA, float* C)
 
 
 }
-#endif
+//#endif
 
+#if 0
 
 // Device multiplication function called by Mul()
 // Compute C = A * B
@@ -113,14 +116,17 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	int tx = threadIdx.x;
 	int ty = threadIdx.y;
 
-	float value=0.0;
-	C[ty*wA+tx]=value;
+	//float value=0.0;
+	//C[ty*wA+tx]=value;
+	int idx=(blockDim.x*bx+tx);
+	int idy=(blockDim.y*by+ty);
+	int id=(idy*wA+idx);
 
 	// Index of the first sub-matrix of A processed by the block
 	int aBegin = by*wA*BLOCK_SIZE;
 
 	// Index of the last sub-matrix of A processed by the block
-	int aEnd = ((wA/BLOCK_SIZE)-1)*BLOCK_SIZE+aBegin;
+	int aEnd = wA-1+aBegin;
 
 	// Step size used to iterate through the sub-matrices of A
 	int aStep = BLOCK_SIZE;
@@ -146,8 +152,8 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 
 		// Load the matrices from global memory to shared memory;
 		// each thread loads one element of each matrix
-		As[ty][tx] = A[aBegin+(ty*wA+tx)];
-		Bs[ty][tx] = B[bBegin+(ty*wB*tx)];
+		As[ty][tx] = A[a+(ty*wA+tx)];
+		Bs[ty][tx] = B[b+(ty*wB+tx)];
 		// Synchronize to make sure the matrices are loaded
 		__syncthreads();
 
@@ -155,7 +161,7 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 		// each thread computes one element
 		// of the block sub-matrix
 		for (int k = 0; k < BLOCK_SIZE; ++k)
-			value+=As[ty][k]*Bs[k][tx];
+			Csub+=As[ty][k]*Bs[k][tx];
 
 		// Synchronize to make sure that the preceding
 		// computation is done before loading two new
@@ -165,6 +171,8 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	
 	// Write the block sub-matrix to global memory;
 	// each thread writes one element
-	C[ty*wA+tx]=value;
+	
+	C[id]=Csub;
 }
 
+#endif
