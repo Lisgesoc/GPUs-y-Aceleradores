@@ -83,7 +83,7 @@ __global__ void Muld(float* A, float* B, int hA, int wB, int wA, float* C)
 	float value=0.0;
 	int idx=(blockDim.x*blockIdx.x+threadIdx.x);
 	int idy=(blockDim.y*blockIdx.y+threadIdx.y);
-	int id=(idy*wA+idx);
+	int id=(idy*wB+idx);
 
 	//To Do
 	//C[id]=0.0;
@@ -120,7 +120,7 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	//C[ty*wA+tx]=value;
 	int idx=(blockDim.x*bx+tx);
 	int idy=(blockDim.y*by+ty);
-	int id=(idy*wA+idx);
+	int id=(idy*wB+idx);
 
 	// Index of the first sub-matrix of A processed by the block
 	int aBegin = by*wA*BLOCK_SIZE;
