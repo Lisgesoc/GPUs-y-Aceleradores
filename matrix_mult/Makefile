@@ -1,6 +1,7 @@
 CXX = g++
 CC = g++
-NVCC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
+NVCC = nvcc
+#NVCC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
 
 CFLAGS=-O3 -I. -I/usr/local/cuda/include 
 CXXFLAGS=-O3 -I. -I/usr/local/cuda/include

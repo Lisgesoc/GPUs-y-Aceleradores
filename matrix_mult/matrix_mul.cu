@@ -75,8 +75,7 @@ void Mul___(float* A, float* B, int hA, int wA, int wB, float* C)
 	cudaFree(Bd);
 	cudaFree(Cd);
 }
-//#if 0
-//TODO: Fixear para valores 500 1000 753
+#if 0
 __global__ void Muld(float* A, float* B, int hA, int wB, int wA, float* C)
 {
 	int i;
@@ -98,15 +97,15 @@ __global__ void Muld(float* A, float* B, int hA, int wB, int wA, float* C)
 
 
 }
-//#endif
+#endif
 
-#if 0
+//#if 0
 
 // Device multiplication function called by Mul()
 // Compute C = A * B
 // wA is the width of A
 // wB is the width of B
-__global__ void Muld(float* A, float* B, int wA, int wB, float* C)
+__global__ void Muld(float* A, float* B, int hA, int wB, int wA, float* C)
 {
 
 	// Block index
@@ -116,8 +115,6 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	int tx = threadIdx.x;
 	int ty = threadIdx.y;
 
-	//float value=0.0;
-	//C[ty*wA+tx]=value;
 	int idx=(blockDim.x*bx+tx);
 	int idy=(blockDim.y*by+ty);
 	int id=(idy*wB+idx);
@@ -171,8 +168,9 @@ __global__ void Muld(float* A, float* B, int wA, int wB, float* C)
 	
 	// Write the block sub-matrix to global memory;
 	// each thread writes one element
-	
-	C[id]=Csub;
+	if(idx<wB && idy<hA){
+		C[id]=Csub;
+	}
 }
 
-#endif
+//#endif
