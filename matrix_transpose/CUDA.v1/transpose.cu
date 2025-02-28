@@ -93,17 +93,43 @@ __global__ void transpose_device(float *in, float *out, int rows, int cols)
 	// id =y*rows+x;
 	// out[id]=in[x*rows+y];
 	//V3
+	// int x,y,id,ty,tx;
+	// x=blockIdx.x*blockDim.x+threadIdx.x;
+	// y=blockIdx.y*blockDim.y+threadIdx.y;
+	// id =y*rows+x;
+	// ty=threadIdx.y;
+	// tx=threadIdx.x;
+	// __shared__ float med[NTHREADS1D][NTHREADS1D];
+	// if(x<rows &&y<cols){
+
+	// 	med[tx][ty]=in[id];
+
+	// 	__syncthreads();
+
+	// 	out[x*rows+y]=med[tx][ty];
+
+	// }
+	//V4
 	int x,y,id,ty,tx;
 	x=blockIdx.x*blockDim.x+threadIdx.x;
 	y=blockIdx.y*blockDim.y+threadIdx.y;
 	id =y*rows+x;
 	ty=threadIdx.y;
 	tx=threadIdx.x;
-	__shared__ float med[NTHREADS1D][NTHREADS1D];
-	med[tx][ty]=in[id];
 
-	__syncthreads();
-	out[blockIdx.x*blockDim.x*rows+blockIdx.y*blockDim.y+tx*rows+ty]=med[ty][tx];
+	const int PADDING = 1;
+	__shared__ float med[NTHREADS1D][NTHREADS1D+PADDING];
+
+	if(x<rows &&y<cols){
+
+		med[tx][ty]=in[id];
+
+		__syncthreads();
+
+		out[x*rows+y]=med[tx][ty];
+
+	}
+
 
 }
 
