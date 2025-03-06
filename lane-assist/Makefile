@@ -1,7 +1,7 @@
 
 CXX = g++
 CC = gcc
-NVCC = nvcc
+NVCC = /opt/nvidia/hpc_sdk/Linux_x86_64/2024/compilers/bin/nvcc
 
 #OpenCV
 CXX_OPENCV_FLAGS+=`pkg-config opencv --cflags`
