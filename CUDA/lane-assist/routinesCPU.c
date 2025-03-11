@@ -16,11 +16,11 @@ void canny(uint8_t *im, uint8_t *image_out,
 	float PI = 3.141593;
 
 	float lowthres, hithres;
-
+	// Noise reduction
 	for(i=2; i<height-2; i++)
 		for(j=2; j<width-2; j++)
 		{
-			// Noise reduction
+			
 			NR[i*width+j] =
 				 (2.0*im[(i-2)*width+(j-2)] +  4.0*im[(i-2)*width+(j-1)] +  5.0*im[(i-2)*width+(j)] +  4.0*im[(i-2)*width+(j+1)] + 2.0*im[(i-2)*width+(j+2)]
 				+ 4.0*im[(i-1)*width+(j-2)] +  9.0*im[(i-1)*width+(j-1)] + 12.0*im[(i-1)*width+(j)] +  9.0*im[(i-1)*width+(j+1)] + 4.0*im[(i-1)*width+(j+2)]
@@ -30,11 +30,11 @@ void canny(uint8_t *im, uint8_t *image_out,
 				/159.0;
 		}
 
-
+	// Intensity gradient of the image
 	for(i=2; i<height-2; i++)
 		for(j=2; j<width-2; j++)
 		{
-			// Intensity gradient of the image
+			
 			Gx[i*width+j] = 
 				 (1.0*NR[(i-2)*width+(j-2)] +  2.0*NR[(i-2)*width+(j-1)] +  (-2.0)*NR[(i-2)*width+(j+1)] + (-1.0)*NR[(i-2)*width+(j+2)]
 				+ 4.0*NR[(i-1)*width+(j-2)] +  8.0*NR[(i-1)*width+(j-1)] +  (-8.0)*NR[(i-1)*width+(j+1)] + (-4.0)*NR[(i-1)*width+(j+2)]
