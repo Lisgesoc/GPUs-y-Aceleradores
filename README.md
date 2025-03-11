@@ -7,4 +7,6 @@ Repositorio remoto para la transferencia de codigo y archivos de la asignatura
         .Reduccion de acesos haciendo una copia en shared mem para uso de hilos en la misma SM
         .Copias colectivas a shared mem y syncronizacion antes del computo
     -Optimizacion de acesos a shared mem evitando acesos simultaneos o consecutivos al mismo banco de registros
-    -Paralelizacion a nivel Kernel, creacion de streams dividiendo el kernel original (si es posible) en subkernels que resuelvan subproblemas no   dependientes y delegando la gestion de la ejecucion de los streams(Carga de datos / Kernel / Descarga de datos) al controlador de la grafica.
+    -Paralelizacion a nivel Kernel, creacion de streams dividiendo el kernel original (si es posible) en
+     subkernels que resuelvan subproblemas no   dependientes y delegando la gestion de la ejecucion de los
+     streams(Carga de datos / Kernel / Descarga de datos) al controlador de la grafica.
