@@ -7,17 +7,21 @@
 #include "png_io.h"
 
 
+const int BLOCK_SIZE = 1;
+const int GRID_SIZE = 1;
+
 void canny(uint8_t *img, uint8_t *image_out, int height, int width, float level);
-void houghTransform();
-void getLines();
+
 
 __global__ void NoiseReduct(uint8_t *im, float *NR, int height, int width);
 __global__ void IntensityGrad(float *NR, float *Gx, float *Gy, float *G, float *phi, int height, int width);
 __global__ void Edge(uint8_t *pedge, float *G, float *phi, int height, int width);
 __global__ void Umbral(uint8_t *pedge, uint8_t *image_out, float *G, int height, int width, float level);
+__global__ void houghTransform(uint8_t *im, int height, int width, uint32_t *accumulators, int accu_width, int accu_height, float *sin_table, float *cos_table, float hough_h);
+__global__ void getLines(uint32_t *accumulators, int accu_width, int accu_height, int height, int width,int *x1_lines, int *y1_lines, int *x2_lines, int *y2_lines, int *lines, float *sin_table, float *cos_table);
 
 void lane_assist_GPU(uint8_t *im, int height, int width,
-	int *x1, int *y1, int *x2, int *y2, int *nlines)
+	int *x1, int *y1, int *x2, int *y2, int *nlines, float *sin_table, float *cos_table)
 {
 
 	/*
@@ -47,16 +51,59 @@ void lane_assist_GPU(uint8_t *im, int height, int width,
 
 	write_png_fileBW("out_edges.png", imEdge,width,height);
 
+	float hough_h = ((sqrt(2.0) * (float)(height>width?height:width)) / 2.0);
+
+	uint32_t *accumulators;
+	int accu_width = 180;
+	int accu_height = hough_h * 2.0;
+	cudaMalloc((void**)&accumulators, accu_width*accu_height*sizeof(uint32_t));
+	
+	float *sin_table_d, *cos_table_d;
+	cudaMalloc((void**)&sin_table_d, 180*sizeof(float));
+	cudaMalloc((void**)&cos_table_d, 180*sizeof(float));
+	cudaMemcpy(sin_table_d, sin_table, 180*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(cos_table_d, cos_table, 180*sizeof(float), cudaMemcpyHostToDevice);
+
+	dim3 dimGrid(GRID_SIZE,GRID_SIZE);
+	dim3 dimBlock(BLOCK_SIZE,BLOCK_SIZE);
+	houghTransform<<<dimGrid, dimBlock>>>(imEdge, height, width, accumulators, accu_width, accu_height, sin_table_d, cos_table_d, hough_h);
+
+	cudaFree(imEdge);//Reorganizacion admin mem glob gpu
+
+	int *x1_d, *y1_d, *x2_d, *y2_d;
+	cudaMalloc((void**)&x1_d, 10*sizeof(int));
+	cudaMalloc((void**)&x2_d, 10*sizeof(int));
+	cudaMalloc((void**)&y1_d, 10*sizeof(int));
+	cudaMalloc((void**)&y2_d, 10*sizeof(int));
+
+	int *lines_d;
+	cudaMalloc((void**)&lines_d, sizeof(int));
+	cudaMemcpy(lines_d, lines, sizeof(int), cudaMemcpyHostToDevice);
+
+	getLines<<<dimGrid, dimBlock>>>(accumulators, accu_width, accu_height, height, width, x1_d, y1_d, x2_d, y2_d, lines_d, sin_table_d, cos_table_d);
+
+	cudaMemcpy(nlines, lines_d, sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(x1, x1_d, 10*sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(x2, x2_d, 10*sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(y1, y1_d, 10*sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(y2, y2_d, 10*sizeof(int), cudaMemcpyDeviceToHost);
 
 	//Free mem (Posible reorganizacion para evitar sobrecargar la mem global de GPU)
 	//cudaFree(img);
-	cudaFree(imEdge);
+	//cudaFree(imEdge)
+	cudaFree(accumulators);
+	cudaFree(sin_table_d);
+	cudaFree(cos_table_d);
+	cudaFree(x1_d);
+	cudaFree(x2_d);
+	cudaFree(y1_d);
+	cudaFree(y2_d);
+	cudaFree(lines_d);
 }
 
 
 
-void canny(uint8_t *img, uint8_t *image_out, int height, int width, float level) 
-{
+void canny(uint8_t *img, uint8_t *image_out, int height, int width, float level) {
 
 	/*
 
@@ -66,8 +113,8 @@ void canny(uint8_t *img, uint8_t *image_out, int height, int width, float level)
 	Hysteresis Thresholding kernel?)
 
 	*/
-	dim3 dimGrid(1,1);
-	dim3 dimBlock(1,1);
+	dim3 dimGrid(GRID_SIZE,GRID_SIZE);
+	dim3 dimBlock(BLOCK_SIZE,BLOCK_SIZE);
 
 	float *NR;
 	int size = height * width *sizeof(float);
@@ -211,12 +258,110 @@ __global__ void Umbral(uint8_t *pedge, uint8_t *image_out, float *G, int height,
 		}
 }
 
-void houghTransform(){
-	//Could be a kernerl by selfs
+__global__ void houghTransform(uint8_t *im, int height, int width, uint32_t *accumulators, int accu_width, int accu_height, float *sin_table, float *cos_table, float hough_h){
+	//Could be a kernerl by it selfs
+	int i, j, theta;
+
+	for(i=0; i<accu_width*accu_height; i++)
+		accumulators[i]=0;	
+
+	float center_x = width/2.0; 
+	float center_y = height/2.0;
+	for(i=0;i<height;i++)  
+	{  
+		for(j=0;j<width;j++)  
+		{  
+			if( im[ (i*width) + j] > 250 ) // Pixel is edge  
+			{  
+				for(theta=0;theta<180;theta++)  
+				{  
+					float rho = ( ((float)j - center_x) * cos_table[theta]) + (((float)i - center_y) * sin_table[theta]);
+					accumulators[ (int)((round(rho + hough_h) * 180.0)) + theta]++;
+
+				} 
+			} 
+		} 
+	}
 }
 
-void getLines (){
-	//Could be a kernerl by selfs
-	
+__global__ void getLines(uint32_t *accumulators, int accu_width, int accu_height, int height, int width,int *x1_lines, int *y1_lines, int *x2_lines, int *y2_lines, int *lines, float *sin_table, float *cos_table){
+	//Could be a kernerl by it selfs
+	int threshold;
+	if (width > height)
+	{
+		threshold = width / 6;
+	}
+	else
+	{
+		threshold = height / 6;
+	}
+
+	int rho, theta, ii, jj;
+	uint32_t max;
+
+	for (rho = 0; rho < accu_height; rho++)
+	{
+		for (theta = 0; theta < accu_width; theta++)
+		{
+
+			if (accumulators[(rho * accu_width) + theta] >= threshold)
+			{
+				// Is this point a local maxima (9x9)
+				max = accumulators[(rho * accu_width) + theta];
+				for (int ii = -4; ii <= 4; ii++)
+				{
+					for (int jj = -4; jj <= 4; jj++)
+					{
+						if ((ii + rho >= 0 && ii + rho < accu_height) && (jj + theta >= 0 && jj + theta < accu_width))
+						{
+							if (accumulators[((rho + ii) * accu_width) + (theta + jj)] > max)
+							{
+								max = accumulators[((rho + ii) * accu_width) + (theta + jj)];
+							}
+						}
+					}
+				}
+
+				if (max == accumulators[(rho * accu_width) + theta]) // local maxima
+				{
+					int x1, y1, x2, y2;
+					x1 = y1 = x2 = y2 = 0;
+
+					if (theta >= 45 && theta <= 135)
+					{
+						if (theta > 90)
+						{
+							// y = (r - x cos(t)) / sin(t)
+							x1 = width / 2;
+							y1 = ((float)(rho - (accu_height / 2)) - ((x1 - (width / 2)) * cos_table[theta])) / sin_table[theta] + (height / 2);
+							x2 = width;
+							y2 = ((float)(rho - (accu_height / 2)) - ((x2 - (width / 2)) * cos_table[theta])) / sin_table[theta] + (height / 2);
+						}
+						else
+						{
+							// y = (r - x cos(t)) / sin(t)
+							x1 = 0;
+							y1 = ((float)(rho - (accu_height / 2)) - ((x1 - (width / 2)) * cos_table[theta])) / sin_table[theta] + (height / 2);
+							x2 = width * 2 / 5;
+							y2 = ((float)(rho - (accu_height / 2)) - ((x2 - (width / 2)) * cos_table[theta])) / sin_table[theta] + (height / 2);
+						}
+					}
+					else
+					{
+						// x = (r - y sin(t)) / cos(t);
+						y1 = 0;
+						x1 = ((float)(rho - (accu_height / 2)) - ((y1 - (height / 2)) * sin_table[theta])) / cos_table[theta] + (width / 2);
+						y2 = height;
+						x2 = ((float)(rho - (accu_height / 2)) - ((y2 - (height / 2)) * sin_table[theta])) / cos_table[theta] + (width / 2);
+					}
+					x1_lines[*lines] = x1;
+					y1_lines[*lines] = y1;
+					x2_lines[*lines] = x2;
+					y2_lines[*lines] = y2;
+					(*lines)++;
+				}
+			}
+		}
+	}
 }
 

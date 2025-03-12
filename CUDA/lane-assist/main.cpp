@@ -22,7 +22,7 @@ double get_time()
 	return (t);
 }
 
- 
+
 
 int main(int argc, char **argv)
 {
@@ -78,7 +78,7 @@ int main(int argc, char **argv)
 		case 'g':
 			t0 = get_time();
 			lane_assist_GPU(im, height, width,
-				x1, y1, x2, y2, &nlines);
+				x1, y1, x2, y2, &nlines, sin_table, cos_table);
                         t1 = get_time();
 			printf("GPU Exection time %f ms.\n", t1-t0);
 			break;
