@@ -7,8 +7,10 @@
 #include "png_io.h"
 
 
-const int BLOCK_SIZE = 1;
-const int GRID_SIZE = 1;
+// const int BLOCK_SIZE = 1;
+// const int GRID_SIZE = 1;
+
+const int BLOCK_SIZE = 16;
 
 void canny(uint8_t *img, uint8_t *image_out, int height, int width, float level);
 
@@ -64,7 +66,9 @@ void lane_assist_GPU(uint8_t *im, int height, int width,
 	cudaMemcpy(sin_table_d, sin_table, 180*sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(cos_table_d, cos_table, 180*sizeof(float), cudaMemcpyHostToDevice);
 
-	dim3 dimGrid(GRID_SIZE,GRID_SIZE);
+	int grid_size=sizeof(float)*height/BLOCK_SIZE;
+
+	dim3 dimGrid((sizeof(float)*height/BLOCK_SIZE)+1,(sizeof(float)*width/BLOCK_SIZE)+1);
 	dim3 dimBlock(BLOCK_SIZE,BLOCK_SIZE);
 	houghTransform<<<dimGrid, dimBlock>>>(imEdge, height, width, accumulators, accu_width, accu_height, sin_table_d, cos_table_d, hough_h);
 
@@ -113,8 +117,8 @@ void canny(uint8_t *img, uint8_t *image_out, int height, int width, float level)
 	Hysteresis Thresholding kernel?)
 
 	*/
-	dim3 dimGrid(GRID_SIZE,GRID_SIZE);
-	dim3 dimBlock(BLOCK_SIZE,BLOCK_SIZE);
+dim3 dimGrid((sizeof(float)*height/BLOCK_SIZE)+1,(sizeof(float)*width/BLOCK_SIZE)+1);
+dim3 dimBlock(BLOCK_SIZE,BLOCK_SIZE);
 
 	float *NR;
 	int size = height * width *sizeof(float);
@@ -159,29 +163,29 @@ void canny(uint8_t *img, uint8_t *image_out, int height, int width, float level)
 }
 
 __global__ void NoiseReduct(uint8_t *im, float *NR, int height, int width){
-	int i ,j;
-	for(i=2; i<height-2; i++)
-		for(j=2; j<width-2; j++)
-		{
-			
-			NR[i*width+j] =
-				(2.0*im[(i-2)*width+(j-2)] +  4.0*im[(i-2)*width+(j-1)] +  5.0*im[(i-2)*width+(j)] +  4.0*im[(i-2)*width+(j+1)] + 2.0*im[(i-2)*width+(j+2)]
-				+ 4.0*im[(i-1)*width+(j-2)] +  9.0*im[(i-1)*width+(j-1)] + 12.0*im[(i-1)*width+(j)] +  9.0*im[(i-1)*width+(j+1)] + 4.0*im[(i-1)*width+(j+2)]
-				+ 5.0*im[(i  )*width+(j-2)] + 12.0*im[(i  )*width+(j-1)] + 15.0*im[(i  )*width+(j)] + 12.0*im[(i  )*width+(j+1)] + 5.0*im[(i  )*width+(j+2)]
-				+ 4.0*im[(i+1)*width+(j-2)] +  9.0*im[(i+1)*width+(j-1)] + 12.0*im[(i+1)*width+(j)] +  9.0*im[(i+1)*width+(j+1)] + 4.0*im[(i+1)*width+(j+2)]
-				+ 2.0*im[(i+2)*width+(j-2)] +  4.0*im[(i+2)*width+(j-1)] +  5.0*im[(i+2)*width+(j)] +  4.0*im[(i+2)*width+(j+1)] + 2.0*im[(i+2)*width+(j+2)])
-				/159.0;
-		}
+
+	int j=blockidx.x*blockDim.x+threadIdx.x;
+	int i=blockidx.y*blockDim.y+threadIdx.y;
+	if(i>2 && i<height-2 && j>2 &&j<width-2){
+
+		NR[i*width+j] =(2.0*im[(i-2)*width+(j-2)] +  4.0*im[(i-2)*width+(j-1)] +  5.0*im[(i-2)*width+(j)] +  4.0*im[(i-2)*width+(j+1)] + 2.0*im[(i-2)*width+(j+2)]
+		+ 4.0*im[(i-1)*width+(j-2)] +  9.0*im[(i-1)*width+(j-1)] + 12.0*im[(i-1)*width+(j)] +  9.0*im[(i-1)*width+(j+1)] + 4.0*im[(i-1)*width+(j+2)]
+		+ 5.0*im[(i  )*width+(j-2)] + 12.0*im[(i  )*width+(j-1)] + 15.0*im[(i  )*width+(j)] + 12.0*im[(i  )*width+(j+1)] + 5.0*im[(i  )*width+(j+2)]
+		+ 4.0*im[(i+1)*width+(j-2)] +  9.0*im[(i+1)*width+(j-1)] + 12.0*im[(i+1)*width+(j)] +  9.0*im[(i+1)*width+(j+1)] + 4.0*im[(i+1)*width+(j+2)]
+		+ 2.0*im[(i+2)*width+(j-2)] +  4.0*im[(i+2)*width+(j-1)] +  5.0*im[(i+2)*width+(j)] +  4.0*im[(i+2)*width+(j+1)] + 2.0*im[(i+2)*width+(j+2)])
+		/159.0;
+
+	}
 
 }
 
 __global__ void IntensityGrad(float *NR, float *Gx, float *Gy, float *G, float *phi, int height, int width){
-	int i, j;
+
 	float PI=3.141593;
-	for(i=2; i<height-2; i++)
-		for(j=2; j<width-2; j++)
-		{
-			
+	int j=blockidx.x*blockDim.x+threadIdx.x;
+	int i=blockidx.y*blockDim.y+threadIdx.y;
+	if(i>2 && i<height-2 && j>2 &&j<width-2){
+		
 			Gx[i*width+j] = 
 				(1.0*NR[(i-2)*width+(j-2)] +  2.0*NR[(i-2)*width+(j-1)] +  (-2.0)*NR[(i-2)*width+(j+1)] + (-1.0)*NR[(i-2)*width+(j+2)]
 				+ 4.0*NR[(i-1)*width+(j-2)] +  8.0*NR[(i-1)*width+(j-1)] +  (-8.0)*NR[(i-1)*width+(j+1)] + (-4.0)*NR[(i-1)*width+(j+2)]
@@ -213,10 +217,10 @@ __global__ void IntensityGrad(float *NR, float *Gx, float *Gy, float *G, float *
 }
 
 __global__ void Edge(uint8_t *pedge, float *G, float *phi, int height, int width){
-	int i, j;
-	for(i=3; i<height-3; i++)
-		for(j=3; j<width-3; j++)
-		{
+
+	int j=blockidx.x*blockDim.x+threadIdx.x;
+	int i=blockidx.y*blockDim.y+threadIdx.y;
+	if(i>3 && i<height-3 && j>3 &&j<width-3){
 			pedge[i*width+j] = 0;
 			if(phi[i*width+j] == 0){
 				if(G[i*width+j]>G[i*width+j+1] && G[i*width+j]>G[i*width+j-1]) //edge is in N-S
@@ -234,19 +238,39 @@ __global__ void Edge(uint8_t *pedge, float *G, float *phi, int height, int width
 				if(G[i*width+j]>G[(i+1)*width+j-1] && G[i*width+j]>G[(i-1)*width+j+1]) // edge is in NE-SW
 					pedge[i*width+j] = 1;
 			}
-		}
+
+	}
 
 }
 
 __global__ void Umbral(uint8_t *pedge, uint8_t *image_out, float *G, int height, int width, float level){
+	// float lowthres = level/2;
+	// float hithres  = 2*(level);
+	// int i, j, ii, jj;
+
+	// for(i=3; i<height-3; i++)
+	// 	for(j=3; j<width-3; j++)
+	// 	{
+	// 		image_out[i*width+j] = 0;
+	// 		if(G[i*width+j]>hithres && pedge[i*width+j])
+	// 			image_out[i*width+j] = 255;
+	// 		else if(pedge[i*width+j] && G[i*width+j]>=lowthres && G[i*width+j]<hithres)
+	// 			// check neighbours 3x3
+	// 			for (ii=-1;ii<=1; ii++)
+	// 				for (jj=-1;jj<=1; jj++)
+	// 					if (G[(i+ii)*width+j+jj]>hithres)
+	// 						image_out[i*width+j] = 255;
+	// 	}
+	
+
+	int ii, jj;
 	float lowthres = level/2;
 	float hithres  = 2*(level);
-	int i, j, ii, jj;
+	int j=blockidx.x*blockDim.x+threadIdx.x;
+	int i=blockidx.y*blockDim.y+threadIdx.y;
+	if(i>3 && i<height-3 && j>3 &&j<width-3){
 
-	for(i=3; i<height-3; i++)
-		for(j=3; j<width-3; j++)
-		{
-			image_out[i*width+j] = 0;
+		image_out[i*width+j] = 0;
 			if(G[i*width+j]>hithres && pedge[i*width+j])
 				image_out[i*width+j] = 255;
 			else if(pedge[i*width+j] && G[i*width+j]>=lowthres && G[i*width+j]<hithres)
@@ -255,7 +279,8 @@ __global__ void Umbral(uint8_t *pedge, uint8_t *image_out, float *G, int height,
 					for (jj=-1;jj<=1; jj++)
 						if (G[(i+ii)*width+j+jj]>hithres)
 							image_out[i*width+j] = 255;
-		}
+
+	}
 }
 
 __global__ void houghTransform(uint8_t *im, int height, int width, uint32_t *accumulators, int accu_width, int accu_height, float *sin_table, float *cos_table, float hough_h){
