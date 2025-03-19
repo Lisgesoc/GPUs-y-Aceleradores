@@ -35,3 +35,7 @@ HARDWARE LAB:
 
 # Apédice Streams
     - Un stream es una variable que nos permite delegar el proceso de coordinacion de hilos/kernels al controlador de nvidia. En ocasiones, la ejecucion de problemas simples como la incrementacion de todos los elementos de un vector o en general operaciones sin dependencias entre elementos, pueden no ser muy eficientes o por lo menos no la mejor solucion. Con los streams podemos dividir el trabajo del kernel original en varios subkernels que puedan ejecutarse en paralelo para resolver subproblemas. La ventaja se encuentra en la solapacion de accesos a memoria de un stream(carga de datos/kernel/descarga de datos) con la ejecucion de otros kernels 
+
+# Line Assist
+    -V0: 5000000ms aprox
+    -V1: 80000ms aprox
