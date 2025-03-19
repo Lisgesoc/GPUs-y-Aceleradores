@@ -24,20 +24,6 @@ void lane_assist_GPU(uint8_t *im, int height, int width,
 	int *x1, int *y1, int *x2, int *y2, int *nlines, float *sin_table, float *cos_table)
 {
 
-	/*
-
-	TODO
-
-	Book mem and copy Host to Device
-
-	void canny
-	view BWfile
-	void houghTransform
-	void getLines
-
-	Copy Device to Host and free mem
-
-	*/
 
 	//Canny
 	uint8_t *img, *imEdge;
@@ -49,7 +35,11 @@ void lane_assist_GPU(uint8_t *im, int height, int width,
 	canny(img, imEdge, height,width, 1000.0f);
 	cudaFree(img);//Reorganizacion admin mem glob gpu
 
-	write_png_fileBW("out_edges.png", imEdge,width,height);
+	cudaDeviceSynchronize();
+	uint8_t *imEdge_h = (uint8_t*)malloc(size);
+	cudaMemcpy(imEdge_h, imEdge, size, cudaMemcpyDeviceToHost);
+
+	write_png_fileBW("out_edges.png", imEdge_h,width,height);
 
 	float hough_h = ((sqrt(2.0) * (float)(height>width?height:width)) / 2.0);
 
@@ -68,6 +58,8 @@ void lane_assist_GPU(uint8_t *im, int height, int width,
 	dim3 dimBlock(BLOCK_SIZE,BLOCK_SIZE);
 	houghTransform<<<dimGrid, dimBlock>>>(imEdge, height, width, accumulators, accu_width, accu_height, sin_table_d, cos_table_d, hough_h);
 
+	cudaDeviceSynchronize();
+
 	cudaFree(imEdge);//Reorganizacion admin mem glob gpu
 
 	int *x1_d, *y1_d, *x2_d, *y2_d;
@@ -78,9 +70,17 @@ void lane_assist_GPU(uint8_t *im, int height, int width,
 
 	int *lines_d;
 	cudaMalloc((void**)&lines_d, sizeof(int));
-	cudaMemcpy(lines_d, lines, sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(lines_d, nlines, sizeof(int), cudaMemcpyHostToDevice);
+
+	if (!im || !x1 || !y1 || !x2 || !y2 || !nlines) {
+		printf("Error: punteros no inicializados en GPU.\n");
+		return;
+	}
+
 
 	getLines<<<dimGrid, dimBlock>>>(accumulators, accu_width, accu_height, height, width, x1_d, y1_d, x2_d, y2_d, lines_d, sin_table_d, cos_table_d);
+
+	cudaDeviceSynchronize();
 
 	cudaMemcpy(nlines, lines_d, sizeof(int), cudaMemcpyDeviceToHost);
 	cudaMemcpy(x1, x1_d, 10*sizeof(int), cudaMemcpyDeviceToHost);
@@ -354,11 +354,15 @@ __global__ void getLines(uint32_t *accumulators, int accu_width, int accu_height
 						y2 = height;
 						x2 = ((float)(rho - (accu_height / 2)) - ((y2 - (height / 2)) * sin_table[theta])) / cos_table[theta] + (width / 2);
 					}
-					x1_lines[*lines] = x1;
-					y1_lines[*lines] = y1;
-					x2_lines[*lines] = x2;
-					y2_lines[*lines] = y2;
-					(*lines)++;
+					if(*lines <10){
+						x1_lines[*lines] = x1;
+						y1_lines[*lines] = y1;
+						x2_lines[*lines] = x2;
+						y2_lines[*lines] = y2;
+						(*lines)++;
+					}
+
+
 				}
 			}
 		}
