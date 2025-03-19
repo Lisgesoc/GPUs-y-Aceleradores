@@ -10,3 +10,5 @@ Repositorio remoto para la transferencia de codigo y archivos de la asignatura
     -Paralelizacion a nivel Kernel, creacion de streams dividiendo el kernel original (si es posible) en
      subkernels que resuelvan subproblemas no   dependientes y delegando la gestion de la ejecucion de los
      streams(Carga de datos / Kernel / Descarga de datos) al controlador de la grafica.
+
+## Programación paralela en CYCL para diversos dispositivos
