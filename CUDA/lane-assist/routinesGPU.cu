@@ -146,15 +146,66 @@ __global__ void NoiseReduct(uint8_t *im, float *NR, int height, int width){
 	
 	int j=blockIdx.x*blockDim.x+threadIdx.x;
 	int i=blockIdx.y*blockDim.y+threadIdx.y;
-	if(i>2 && i<height-2 && j>2 &&j<width-2){
 
-		NR[i*width+j] =(2.0*im[(i-2)*width+(j-2)] +  4.0*im[(i-2)*width+(j-1)] +  5.0*im[(i-2)*width+(j)] +  4.0*im[(i-2)*width+(j+1)] + 2.0*im[(i-2)*width+(j+2)]
-		+ 4.0*im[(i-1)*width+(j-2)] +  9.0*im[(i-1)*width+(j-1)] + 12.0*im[(i-1)*width+(j)] +  9.0*im[(i-1)*width+(j+1)] + 4.0*im[(i-1)*width+(j+2)]
-		+ 5.0*im[(i  )*width+(j-2)] + 12.0*im[(i  )*width+(j-1)] + 15.0*im[(i  )*width+(j)] + 12.0*im[(i  )*width+(j+1)] + 5.0*im[(i  )*width+(j+2)]
-		+ 4.0*im[(i+1)*width+(j-2)] +  9.0*im[(i+1)*width+(j-1)] + 12.0*im[(i+1)*width+(j)] +  9.0*im[(i+1)*width+(j+1)] + 4.0*im[(i+1)*width+(j+2)]
-		+ 2.0*im[(i+2)*width+(j-2)] +  4.0*im[(i+2)*width+(j-1)] +  5.0*im[(i+2)*width+(j)] +  4.0*im[(i+2)*width+(j+1)] + 2.0*im[(i+2)*width+(j+2)])
-		/159.0;
+	__shared__ uint8_t im_shared[BLOCK_SIZE+4][BLOCK_SIZE+4];
 
+	if(i<height-2 && j<width-2 && i>1 && j>1){
+		im_shared[threadIdx.y+2][threadIdx.x+2] = im[i*width+j];
+		if(threadIdx.y<1){
+			im_shared[threadIdx.y][threadIdx.x+2] = im[(i-2)*width+j];
+			im_shared[threadIdx.y+1][threadIdx.x+2] = im[(i-1)*width+j];
+		}else if(threadIdx.y>=BLOCK_SIZE-1){
+			im_shared[threadIdx.y+4][threadIdx.x+2] = im[(i+2)*width+j];
+			im_shared[threadIdx.y+3][threadIdx.x+2] = im[(i+1)*width+j];
+		}
+		if(threadIdx.x<1){
+			im_shared[threadIdx.y+2][threadIdx.x] = im[i*width+j-2];
+			im_shared[threadIdx.y+2][threadIdx.x+1] = im[i*width+j-1];
+		}else if(threadIdx.x>=BLOCK_SIZE-1){
+			im_shared[threadIdx.y+2][threadIdx.x+4] = im[i*width+j+2];
+			im_shared[threadIdx.y+2][threadIdx.x+3] = im[i*width+j+1]; 
+		}
+		if(threadIdx.x==0){
+			if(threadIdx.y==0){
+				im_shared[0][0]=im[(i-2)*width+j-2];
+				im_shared[0][1]=im[(i-2)*width+j-1];
+				im_shared[1][0]=im[(i-1)*width+j-2];
+				im_shared[1][1]=im[(i-1)*width+j-1];
+			}else if(threadIdx.y==15){
+				im_shared[18][0]=im[(i+1)*width+j-2];
+				im_shared[18][1]=im[(i+1)*width+j-1];
+				im_shared[19][0]=im[(i+2)*width+j-2];
+				im_shared[19][1]=im[(i+2)*width+j-1];
+
+			}
+		}else if(threadIdx.x==15){
+			if(threadIdx.y==0){
+				im_shared[0][18]=im[(i-2)*width+j+1];
+				im_shared[0][19]=im[(i-2)*width+j+2];
+				im_shared[1][18]=im[(i-1)*width+j+1];
+				im_shared[1][19]=im[(i-1)*width+j+2];
+
+			}else if(threadIdx.y==15){
+				im_shared[18][18]=im[(i+1)*width+j+1];
+				im_shared[18][19]=im[(i+1)*width+j+2];
+				im_shared[19][18]=im[(i+2)*width+j+1];
+				im_shared[19][19]=im[(i+2)*width+j+2];
+				
+			}
+		}
+	}
+	__syncthreads();
+
+	if(i>=2 && i<height-2 && j>=2 &&j<width-2){
+		int ty=threadIdx.y+2;
+		int tx=threadIdx.x+2;
+
+		NR[i * width + j] = ( 2.0*im_shared[ty -2][tx-2] +  4.0*im_shared[ty -2][tx-1] +  5.0*im_shared[ty -2][tx] +  4.0*im_shared[ty -2][tx+1] + 2.0*im_shared[ty -2][tx+2]
+		+ 4.0*im_shared[ty-1][tx-2] +  9.0*im_shared[ty-1][tx-1] + 12.0*im_shared[ty-1][tx] +  9.0*im_shared[ty-1][tx+1] + 4.0*im_shared[ty-1][tx+2]
+		+ 5.0*im_shared[ty][tx-2] + 12.0*im_shared[ty][tx-1] + 15.0*im_shared[ty][tx] + 12.0*im_shared[ty][tx+1] + 5.0*im_shared[ty][tx+2]
+		+ 4.0*im_shared[ty+1][tx-2] +  9.0*im_shared[ty+1][tx-1] + 12.0*im_shared[ty+1][tx] +  9.0*im_shared[ty+1][tx+1] + 4.0*im_shared[ty+1][tx+2]
+		+ 2.0*im_shared[ty+2][tx-2] +  4.0*im_shared[ty+2][tx-1] +  5.0*im_shared[ty+2][tx] +  4.0*im_shared[ty+2][tx+1] + 2.0*im_shared[ty+2][tx+2])
+		/159.0f;
 	}
 
 }
@@ -164,34 +215,88 @@ __global__ void IntensityGrad(float *NR, float *Gx, float *Gy, float *G, float *
 	float PI=3.141593;
 	int j=blockIdx.x*blockDim.x+threadIdx.x;
 	int i=blockIdx.y*blockDim.y+threadIdx.y;
+
+
+    __shared__ uint8_t NR_shared[BLOCK_SIZE+4][BLOCK_SIZE+4];
+
+	if(i<height-2 && j<width-2 && i>1 && j>1){
+		NR_shared[threadIdx.y+2][threadIdx.x+2] = NR[i*width+j];
+		if(threadIdx.y<1){
+			NR_shared[threadIdx.y][threadIdx.x+2] = NR[(i-2)*width+j];
+			NR_shared[threadIdx.y+1][threadIdx.x+2] = NR[(i-1)*width+j];
+		}else if(threadIdx.y>=BLOCK_SIZE-1){
+			NR_shared[threadIdx.y+4][threadIdx.x+2] = NR[(i+2)*width+j];
+			NR_shared[threadIdx.y+3][threadIdx.x+2] = NR[(i+1)*width+j];
+		}
+		if(threadIdx.x<1){
+			NR_shared[threadIdx.y+2][threadIdx.x] = NR[i*width+j-2];
+			NR_shared[threadIdx.y+2][threadIdx.x+1] = NR[i*width+j-1];
+		}else if(threadIdx.x>=BLOCK_SIZE-1){
+			NR_shared[threadIdx.y+2][threadIdx.x+4] = NR[i*width+j+2];
+			NR_shared[threadIdx.y+2][threadIdx.x+3] = NR[i*width+j+1]; 
+		}
+		if(threadIdx.x==0){
+			if(threadIdx.y==0){
+				NR_shared[0][0]=NR[(i-2)*width+j-2];
+				NR_shared[0][1]=NR[(i-2)*width+j-1];
+				NR_shared[1][0]=NR[(i-1)*width+j-2];
+				NR_shared[1][1]=NR[(i-1)*width+j-1];
+			}else if(threadIdx.y==15){
+				NR_shared[18][0]=NR[(i+1)*width+j-2];
+				NR_shared[18][1]=NR[(i+1)*width+j-1];
+				NR_shared[19][0]=NR[(i+2)*width+j-2];
+				NR_shared[19][1]=NR[(i+2)*width+j-1];
+
+			}
+		}else if(threadIdx.x==15){
+			if(threadIdx.y==0){
+				NR_shared[0][18]=NR[(i-2)*width+j+1];
+				NR_shared[0][19]=NR[(i-2)*width+j+2];
+				NR_shared[1][18]=NR[(i-1)*width+j+1];
+				NR_shared[1][19]=NR[(i-1)*width+j+2];
+
+			}else if(threadIdx.y==15){
+				NR_shared[18][18]=NR[(i+1)*width+j+1];
+				NR_shared[18][19]=NR[(i+1)*width+j+2];
+				NR_shared[19][18]=NR[(i+2)*width+j+1];
+				NR_shared[19][19]=NR[(i+2)*width+j+2];
+				
+			}
+		}
+	}
+	__syncthreads();
+
+
 	if(i>2 && i<height-2 && j>2 &&j<width-2){
-		
-			Gx[i*width+j] = 
-				(1.0*NR[(i-2)*width+(j-2)] +  2.0*NR[(i-2)*width+(j-1)] +  (-2.0)*NR[(i-2)*width+(j+1)] + (-1.0)*NR[(i-2)*width+(j+2)]
-				+ 4.0*NR[(i-1)*width+(j-2)] +  8.0*NR[(i-1)*width+(j-1)] +  (-8.0)*NR[(i-1)*width+(j+1)] + (-4.0)*NR[(i-1)*width+(j+2)]
-				+ 6.0*NR[(i  )*width+(j-2)] + 12.0*NR[(i  )*width+(j-1)] + (-12.0)*NR[(i  )*width+(j+1)] + (-6.0)*NR[(i  )*width+(j+2)]
-				+ 4.0*NR[(i+1)*width+(j-2)] +  8.0*NR[(i+1)*width+(j-1)] +  (-8.0)*NR[(i+1)*width+(j+1)] + (-4.0)*NR[(i+1)*width+(j+2)]
-				+ 1.0*NR[(i+2)*width+(j-2)] +  2.0*NR[(i+2)*width+(j-1)] +  (-2.0)*NR[(i+2)*width+(j+1)] + (-1.0)*NR[(i+2)*width+(j+2)]);
+		int ty=threadIdx.y+2;
+		int tx=threadIdx.x+2;
+
+				Gx[i*width+j]= 
+			(1.0*NR_shared[ty-2][tx-2]+  2.0*NR_shared[ty-2][tx-1]+  (-2.0)*NR_shared[ty-2][tx+1]+ (-1.0)*NR_shared[ty-2][tx+2]
+			+ 4.0*NR_shared[ty-1][tx-2]+  8.0*NR_shared[ty-1][tx-1]+  (-8.0)*NR_shared[ty-1][tx+1]+ (-4.0)*NR_shared[ty-1][tx+2]
+			+ 6.0*NR_shared[ty][tx-2]+ 12.0*NR_shared[ty][tx-1]+ (-12.0)*NR_shared[ty][tx+1]+ (-6.0)*NR_shared[ty][tx+2]
+			+ 4.0*NR_shared[ty+1][tx-2]+  8.0*NR_shared[ty+1][tx-1]+  (-8.0)*NR_shared[ty+1][tx+1]+ (-4.0)*NR_shared[ty+1][tx+2]
+			+ 1.0*NR_shared[ty+2][tx-2]+  2.0*NR_shared[ty+2][tx-1]+  (-2.0)*NR_shared[ty+2][tx+1]+ (-1.0)*NR_shared[ty+2][tx+2]);
 
 
-			Gy[i*width+j] = 
-				((-1.0)*NR[(i-2)*width+(j-2)] + (-4.0)*NR[(i-2)*width+(j-1)] +  (-6.0)*NR[(i-2)*width+(j)] + (-4.0)*NR[(i-2)*width+(j+1)] + (-1.0)*NR[(i-2)*width+(j+2)]
-				+ (-2.0)*NR[(i-1)*width+(j-2)] + (-8.0)*NR[(i-1)*width+(j-1)] + (-12.0)*NR[(i-1)*width+(j)] + (-8.0)*NR[(i-1)*width+(j+1)] + (-2.0)*NR[(i-1)*width+(j+2)]
-				+    2.0*NR[(i+1)*width+(j-2)] +    8.0*NR[(i+1)*width+(j-1)] +    12.0*NR[(i+1)*width+(j)] +    8.0*NR[(i+1)*width+(j+1)] +    2.0*NR[(i+1)*width+(j+2)]
-				+    1.0*NR[(i+2)*width+(j-2)] +    4.0*NR[(i+2)*width+(j-1)] +     6.0*NR[(i+2)*width+(j)] +    4.0*NR[(i+2)*width+(j+1)] +    1.0*NR[(i+2)*width+(j+2)]);
+		Gy[i*width+j]= 
+			((-1.0)*NR_shared[ty-2][tx-2]+ (-4.0)*NR_shared[ty-2][tx-1]+  (-6.0)*NR_shared[ty-2][tx]+ (-4.0)*NR_shared[ty-2][tx+1]+ (-1.0)*NR_shared[ty-2][tx+2]
+			+ (-2.0)*NR_shared[ty-1][tx-2]+ (-8.0)*NR_shared[ty-1][tx-1]+ (-12.0)*NR_shared[ty-1][tx]+ (-8.0)*NR_shared[ty-1][tx+1]+ (-2.0)*NR_shared[ty-1][tx+2]
+			+    2.0*NR_shared[ty+1][tx-2]+    8.0*NR_shared[ty+1][tx-1]+    12.0*NR_shared[ty+1][tx]+    8.0*NR_shared[ty+1][tx+1]+    2.0*NR_shared[ty+1][tx+2]
+			+    1.0*NR_shared[ty+2][tx-2]+    4.0*NR_shared[ty+2][tx-1]+     6.0*NR_shared[ty+2][tx]+    4.0*NR_shared[ty+2][tx+1]+    1.0*NR_shared[ty+2][tx+2]);
 
-			G[i*width+j]   = sqrtf((Gx[i*width+j]*Gx[i*width+j])+(Gy[i*width+j]*Gy[i*width+j]));	//G = √Gx²+Gy²
-			phi[i*width+j] = atan2f(fabs(Gy[i*width+j]),fabs(Gx[i*width+j]));
+		G[i*width+j]   = sqrtf((Gx[i*width+j]*Gx[i*width+j])+(Gy[i*width+j]*Gy[i*width+j]));	//G = √Gx²+Gy²
+		phi[i*width+j] = atan2f(fabs(Gy[i*width+j]),fabs(Gx[i*width+j]));
 
-			if(fabs(phi[i*width+j])<=PI/8 )
-				phi[i*width+j] = 0;
-			else if (fabs(phi[i*width+j])<= 3*(PI/8))
-				phi[i*width+j] = 45;
-			else if (fabs(phi[i*width+j]) <= 5*(PI/8))
-				phi[i*width+j] = 90;
-			else if (fabs(phi[i*width+j]) <= 7*(PI/8))
-				phi[i*width+j] = 135;
-			else phi[i*width+j] = 0;
+		if(fabs(phi[i*width+j])<=PI/8 )
+			phi[i*width+j] = 0;
+		else if (fabs(phi[i*width+j])<= 3*(PI/8))
+			phi[i*width+j] = 45;
+		else if (fabs(phi[i*width+j]) <= 5*(PI/8))
+			phi[i*width+j] = 90;
+		else if (fabs(phi[i*width+j]) <= 7*(PI/8))
+			phi[i*width+j] = 135;
+		else phi[i*width+j] = 0;
 	}
 
 }
