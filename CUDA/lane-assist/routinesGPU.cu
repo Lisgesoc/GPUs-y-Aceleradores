@@ -149,21 +149,21 @@ __global__ void NoiseReduct(uint8_t *im, float *NR, int height, int width){
 
 	__shared__ uint8_t im_shared[BLOCK_SIZE+4][BLOCK_SIZE+4];
 
-	if(i<height && j<width){
+	if(i<height-2 && j<width-2 && i>1 && j>1){
 		im_shared[threadIdx.y+2][threadIdx.x+2] = im[i*width+j];
-		if(threadIdx.y<2){
+		if(threadIdx.y<1){
 			im_shared[threadIdx.y][threadIdx.x+2] = im[(i-2)*width+j];
 			im_shared[threadIdx.y+1][threadIdx.x+2] = im[(i-1)*width+j];
-		}else if(threadIdx.y>=BLOCK_SIZE-2){
+		}else if(threadIdx.y>=BLOCK_SIZE-1){
 			im_shared[threadIdx.y+4][threadIdx.x+2] = im[(i+2)*width+j];
 			im_shared[threadIdx.y+3][threadIdx.x+2] = im[(i+1)*width+j];
 		}
-		if(threadIdx.x<2){
+		if(threadIdx.x<1){
 			im_shared[threadIdx.y+2][threadIdx.x] = im[i*width+j-2];
 			im_shared[threadIdx.y+2][threadIdx.x+1] = im[i*width+j-1];
-		}else if(threadIdx.x>=BLOCK_SIZE-2){
+		}else if(threadIdx.x>=BLOCK_SIZE-1){
 			im_shared[threadIdx.y+2][threadIdx.x+4] = im[i*width+j+2];
-			im_shared[threadIdx.y+2][threadIdx.x+3] = im[i*width+j+1];
+			im_shared[threadIdx.y+2][threadIdx.x+3] = im[i*width+j+1]; 
 		}
 		if(threadIdx.x==0){
 			if(threadIdx.y==0){
@@ -194,16 +194,16 @@ __global__ void NoiseReduct(uint8_t *im, float *NR, int height, int width){
 			}
 		}
 	}
-	__syncronizeThreads();
+	__syncthreads();
 
-	if(i>2 && i<height-2 && j>2 &&j<width-2){
+	if(i>=2 && i<height-2 && j>=2 &&j<width-2){
 
-		NR[i*width+j] =(2.0*im_shared[(i-2)*width+(j-2)] +  4.0*im_shared[(i-2)*width+(j-1)] +  5.0*im_shared[(i-2)*width+(j)] +  4.0*im_shared[(i-2)*width+(j+1)] + 2.0*im_shared[(i-2)*width+(j+2)]
-		+ 4.0*im_shared[(i-1)*width+(j-2)] +  9.0*im_shared[(i-1)*width+(j-1)] + 12.0*im_shared[(i-1)*width+(j)] +  9.0*im_shared[(i-1)*width+(j+1)] + 4.0*im_shared[(i-1)*width+(j+2)]
-		+ 5.0*im_shared[(i  )*width+(j-2)] + 12.0*im_shared[(i  )*width+(j-1)] + 15.0*im_shared[(i  )*width+(j)] + 12.0*im_shared[(i  )*width+(j+1)] + 5.0*im_shared[(i  )*width+(j+2)]
-		+ 4.0*im_shared[(i+1)*width+(j-2)] +  9.0*im_shared[(i+1)*width+(j-1)] + 12.0*im_shared[(i+1)*width+(j)] +  9.0*im_shared[(i+1)*width+(j+1)] + 4.0*im_shared[(i+1)*width+(j+2)]
-		+ 2.0*im_shared[(i+2)*width+(j-2)] +  4.0*im_shared[(i+2)*width+(j-1)] +  5.0*im_shared[(i+2)*width+(j)] +  4.0*im_shared[(i+2)*width+(j+1)] + 2.0*im_shared[(i+2)*width+(j+2)])
-		/159.0;
+		NR[i*width+j] = ( 2.0*im_shared[threadIdx.y -2][threadIdx.x-2] +  4.0*im_shared[threadIdx.y -2][threadIdx.x-1] +  5.0*im_shared[threadIdx.y -2][threadIdx.x] +  4.0*im_shared[threadIdx.y -2][threadIdx.x+1] + 2.0*im_shared[threadIdx.y -2][threadIdx.x+2]
+		+ 4.0*im_shared[threadIdx.y-1][threadIdx.x-2] +  9.0*im_shared[threadIdx.y-1][threadIdx.x-1] + 12.0*im_shared[threadIdx.y-1][threadIdx.x] +  9.0*im_shared[threadIdx.y-1][threadIdx.x+1] + 4.0*im_shared[threadIdx.y-1][threadIdx.x+2]
+		+ 5.0*im_shared[threadIdx.y][threadIdx.x-2] + 12.0*im_shared[threadIdx.y][threadIdx.x-1] + 15.0*im_shared[threadIdx.y][threadIdx.x] + 12.0*im_shared[threadIdx.y][threadIdx.x+1] + 5.0*im_shared[threadIdx.y][threadIdx.x+2]
+		+ 4.0*im_shared[threadIdx.y+1][threadIdx.x-2] +  9.0*im_shared[threadIdx.y+1][threadIdx.x-1] + 12.0*im_shared[threadIdx.y+1][threadIdx.x] +  9.0*im_shared[threadIdx.y+1][threadIdx.x+1] + 4.0*im_shared[threadIdx.y+1][threadIdx.x+2]
+		+ 2.0*im_shared[threadIdx.y+2][threadIdx.x-2] +  4.0*im_shared[threadIdx.y+2][threadIdx.x-1] +  5.0*im_shared[threadIdx.y+2][threadIdx.x] +  4.0*im_shared[threadIdx.y+2][threadIdx.x+1] + 2.0*im_shared[threadIdx.y+2][threadIdx.x+2])
+		/159.0; 
 
 	}
 
