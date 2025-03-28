@@ -1,0 +1,1 @@
+-Intel compiler (data parallel c++) SYCL
